@@ -1,54 +1,59 @@
-import { useState } from 'react';
+import { useForm, router } from '@inertiajs/react';
 import TaskItem from '@/Components/TaskItem';
 import StatsPanel from '@/Components/StatsPanel';
 
-export default function Welcome() {
-    const [tareas, setTareas] = useState([]);
-    const [nuevaTarea, setNuevaTarea] = useState('');
+export default function Welcome({ tasks }) {
+    // useForm para manejar el input de nueva tarea
+    const { data, setData, post, processing, reset } = useForm({
+        title: '',
+    });
 
     // Calculos para las estadisticas
-    const total = tareas.length;
-    const completadas = tareas.filter(t => t.completada).length;
+    const total = tasks.length;
+    const completadas = tasks.filter(t => t.is_completed).length;
     const progreso = total === 0 ? 0 : Math.round((completadas / total) * 100);
 
-    // Añadir tarea
-    const añadirTarea = () => {
-        if (nuevaTarea.trim().length === 0) return;
+    // Crear tarea nueva
+    const crearTarea = (e) => {
+        e.preventDefault();
+        if (data.title.trim().length === 0) return;
 
-        const nueva = {
-            id: Date.now(),
-            titulo: nuevaTarea.trim(),
-            completada: false,
-        };
-
-        setTareas([...tareas, nueva]);
-        setNuevaTarea('');
+        post('/tasks', {
+            preserveScroll: true,
+            onSuccess: () => reset('title'),
+        });
     };
 
-    // Manejar Enter en el input
-    const handleKeyDown = (e) => {
-        if (e.key === 'Enter') {
-            añadirTarea();
-        }
+    // Toggle completada/no completada
+    const toggleTarea = (id, estadoActual) => {
+        router.put(`/tasks/${id}`, {
+            is_completed: !estadoActual,
+        }, {
+            preserveScroll: true,
+        });
     };
 
-    // Marcar o desmarcar tarea
-    const toggleTarea = (id) => {
-        setTareas(tareas.map(t =>
-            t.id === id ? { ...t, completada: !t.completada } : t
-        ));
-    };
-
-    // Editar titulo de tarea
+    // Editar titulo de una tarea
     const editarTarea = (id, nuevoTitulo) => {
-        setTareas(tareas.map(t =>
-            t.id === id ? { ...t, titulo: nuevoTitulo } : t
-        ));
+        router.put(`/tasks/${id}`, {
+            title: nuevoTitulo,
+        }, {
+            preserveScroll: true,
+        });
+    };
+
+    // Eliminar una tarea
+    const eliminarTarea = (id) => {
+        router.delete(`/tasks/${id}`, {
+            preserveScroll: true,
+        });
     };
 
     // Limpiar tareas completadas
     const limpiarCompletadas = () => {
-        setTareas(tareas.filter(t => !t.completada));
+        router.delete('/tasks-completed', {
+            preserveScroll: true,
+        });
     };
 
     return (
@@ -66,43 +71,44 @@ export default function Welcome() {
                 {/* Estadisticas */}
                 <StatsPanel total={total} completadas={completadas} progreso={progreso} />
 
-                {/* Input y boton añadir */}
-                <div className="flex gap-2 mt-6 mb-6">
+                {/* Formulario para añadir tarea */}
+                <form onSubmit={crearTarea} className="flex gap-2 mt-6 mb-6">
                     <input
                         type="text"
                         placeholder="Añadir nueva tarea"
-                        value={nuevaTarea}
-                        onChange={(e) => setNuevaTarea(e.target.value)}
-                        onKeyDown={handleKeyDown}
+                        value={data.title}
+                        onChange={(e) => setData('title', e.target.value)}
                         className="flex-1 px-4 py-2 border border-slate-300 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
                     />
                     <button
-                        onClick={añadirTarea}
-                        className="bg-indigo-600 text-white px-5 py-2 rounded-lg hover:bg-indigo-700 transition font-medium shadow-sm"
+                        type="submit"
+                        disabled={processing}
+                        className="bg-indigo-600 text-white px-5 py-2 rounded-lg hover:bg-indigo-700 transition font-medium shadow-sm disabled:opacity-50"
                     >
                         Añadir
                     </button>
-                </div>
+                </form>
 
                 {/* Lista de tareas */}
                 <ul className="space-y-2 mb-6">
-                    {tareas.map(tarea => (
+                    {tasks.map(tarea => (
                         <TaskItem
                             key={tarea.id}
                             tarea={tarea}
-                            onToggle={toggleTarea}
-                            onEdit={editarTarea}
+                            onToggle={() => toggleTarea(tarea.id, tarea.is_completed)}
+                            onEdit={(nuevoTitulo) => editarTarea(tarea.id, nuevoTitulo)}
+                            onDelete={() => eliminarTarea(tarea.id)}
                         />
                     ))}
                 </ul>
 
-                {/* Boton limpiar lista */}
-                {tareas.length > 0 && (
+                {/* Boton limpiar completadas */}
+                {completadas > 0 && (
                     <button
                         onClick={limpiarCompletadas}
                         className="w-full py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition font-medium shadow-sm"
                     >
-                        Limpiar lista
+                        Limpiar completadas
                     </button>
                 )}
             </div>
